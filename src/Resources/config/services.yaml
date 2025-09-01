@@ -1,0 +1,14 @@
+services:
+  # Автоматическая регистрация всех сервисов
+  Jonston\SanctumBundle\:
+    resource: '../../*'
+    exclude: '../../{Entity,Tests}'
+    autowire: true
+    autoconfigure: true
+
+  # Repository нужно регистрировать отдельно для Doctrine
+  Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository:
+    arguments:
+      - '@doctrine'
+    tags:
+      - { name: 'doctrine.repository_service' }
