@@ -1,14 +1,33 @@
 services:
-  # Автоматическая регистрация всех сервисов
-  Jonston\SanctumBundle\:
-    resource: '../../*'
-    exclude: '../../{Entity,Tests}'
+  # Auto-configure services
+  _defaults:
     autowire: true
     autoconfigure: true
+    public: false
 
-  # Repository нужно регистрировать отдельно для Doctrine
+  # Register all services in the bundle
+  Jonston\SanctumBundle\:
+    resource: '../../*'
+    exclude: '../../{Entity,Tests,DependencyInjection}'
+
+  # Core services
+  Jonston\SanctumBundle\Service\TokenHasher:
+    public: true
+
+  Jonston\SanctumBundle\Service\TokenManager:
+    public: true
+
   Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository:
+    public: true
     arguments:
-      - '@doctrine'
+      $registry: '@doctrine'
+
+  # Security authenticator - UserProvider is optional
+  Jonston\SanctumBundle\Security\TokenAuthenticator:
+    public: true
+    arguments:
+      $tokenRepository: '@Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository'
+      $tokenManager: '@Jonston\SanctumBundle\Service\TokenManager'
+      $userProvider: '@?security.user.provider.concrete.users'
     tags:
-      - { name: 'doctrine.repository_service' }
+      - { name: security.authenticator }

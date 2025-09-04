@@ -20,8 +20,8 @@ class TokenAuthenticator extends AbstractAuthenticator
 {
     public function __construct(
         private readonly PersonalAccessTokenRepository $tokenRepository,
-        private readonly UserProviderInterface $userProvider,
-        private readonly TokenManager $tokenManager
+        private readonly TokenManager $tokenManager,
+        private readonly ?UserProviderInterface $userProvider = null
     ) {}
 
     public function supports(Request $request): ?bool
@@ -53,14 +53,16 @@ class TokenAuthenticator extends AbstractAuthenticator
         $personalAccessToken->updateLastUsedAt();
         $this->tokenRepository->save($personalAccessToken);
 
-        return new SelfValidatingPassport(
-            new UserBadge(
-                $personalAccessToken->getUser()->getUserIdentifier(),
-                function ($userIdentifier) {
-                    return $this->userProvider->loadUserByIdentifier($userIdentifier);
-                }
-            )
+        $userIdentifier = $personalAccessToken->getUser()->getUserIdentifier();
+
+        $userBadge = new UserBadge(
+            $userIdentifier,
+            $this->userProvider ?
+                fn($identifier) => $this->userProvider->loadUserByIdentifier($identifier) :
+                fn($identifier) => $personalAccessToken->getUser()
         );
+
+        return new SelfValidatingPassport($userBadge);
     }
 
     public function onAuthenticationSuccess(Request $request, TokenInterface $token, string $firewallName): ?Response
