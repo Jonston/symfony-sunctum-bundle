@@ -5,29 +5,30 @@ services:
     autoconfigure: true
     public: false
 
-  # Register all services in the bundle
+  # Register all services in the bundle automatically
   Jonston\SanctumBundle\:
     resource: '../../*'
-    exclude: '../../{Entity,Tests,DependencyInjection}'
+    exclude:
+      - '../../{Entity,Tests,DependencyInjection}'
+      - '../../**/*Interface.php'
 
-  # Core services
+  # Make core services public for easy access
   Jonston\SanctumBundle\Service\TokenHasher:
     public: true
 
   Jonston\SanctumBundle\Service\TokenManager:
     public: true
 
+  # Repository needs explicit doctrine registry
   Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository:
     public: true
     arguments:
       $registry: '@doctrine'
 
-  # Security authenticator - UserProvider is optional
+  # Security authenticator with optional user provider
   Jonston\SanctumBundle\Security\TokenAuthenticator:
     public: true
     arguments:
-      $tokenRepository: '@Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository'
-      $tokenManager: '@Jonston\SanctumBundle\Service\TokenManager'
-      $userProvider: '@?security.user.provider.concrete.users'
+      $userProvider: null
     tags:
-      - { name: security.authenticator }
+      - { name: 'security.authenticator' }
