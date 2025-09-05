@@ -21,7 +21,4 @@ services:
 
   # Репозиторий
   Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository:
-    factory: ['@doctrine', 'getRepository']
-    arguments: [
-      'Jonston\SanctumBundle\Entity\PersonalAccessToken'
-    ]
+    arguments: ['@doctrine']
