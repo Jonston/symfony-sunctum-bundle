@@ -4,6 +4,12 @@ services:
     autoconfigure: true
     public: false
 
+  Jonston\SanctumBundle\Security\TokenAuthenticator:
+    arguments:
+      $tokenRepository: '@Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository'
+      $tokenManager: '@Jonston\SanctumBundle\Service\TokenManager'
+      $userProvider: null  # или укажите конкретный UserProvider если нужен
+
   # Основной сервис
   Jonston\SanctumBundle\Service\TokenManager:
     arguments:
