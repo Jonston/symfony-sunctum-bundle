@@ -1,34 +1,19 @@
 services:
-  # Auto-configure services
   _defaults:
     autowire: true
     autoconfigure: true
     public: false
 
-  # Register all services in the bundle automatically
-  Jonston\SanctumBundle\:
-    resource: '../../*'
-    exclude:
-      - '../../{Entity,Tests,DependencyInjection}'
-      - '../../**/*Interface.php'
-
-  # Make core services public for easy access
-  Jonston\SanctumBundle\Service\TokenHasher:
-    public: true
-
+  # Основной сервис
   Jonston\SanctumBundle\Service\TokenManager:
-    public: true
+    arguments:
+      $tokenRepository: '@Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository'
+      $em: '@doctrine.orm.entity_manager'
+      $tokenHasher: '@Jonston\SanctumBundle\Service\TokenHasher'
 
-  # Repository needs explicit doctrine registry
+  # Репозиторий
   Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository:
-    public: true
-    arguments:
-      $registry: '@doctrine'
-
-  # Security authenticator with optional user provider
-  Jonston\SanctumBundle\Security\TokenAuthenticator:
-    public: true
-    arguments:
-      $userProvider: null
-    tags:
-      - { name: 'security.authenticator' }
+    factory: ['@doctrine', 'getRepository']
+    arguments: [
+      'Jonston\SanctumBundle\Entity\PersonalAccessToken'
+    ]
