@@ -2,7 +2,7 @@
 
 namespace Jonston\SanctumBundle\Service;
 
-use Random\RandomException;
+use DateTimeImmutable;
 use Jonston\SanctumBundle\Entity\PersonalAccessToken;
 use Jonston\SanctumBundle\Contract\TokenableInterface;
 use Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository;
@@ -10,33 +10,37 @@ use Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository;
 readonly class TokenService
 {
     public function __construct(
-        private PersonalAccessTokenRepository $tokenRepository
+        private PersonalAccessTokenRepository $tokenRepository,
+        private TokenHasher $tokenHasher
     ) {}
 
     /**
-     * @throws RandomException
+     * @throws \Exception
      */
     public function createToken(
         TokenableInterface $tokenable,
         string $name,
-        array $abilities = ['*']
     ): PersonalAccessToken
     {
+        $plainToken = $this->tokenHasher->generatePlainToken();
+        $hashedToken = $this->tokenHasher->hashToken($plainToken);
+
         $token = new PersonalAccessToken();
         $token->setTokenableId($tokenable->getTokenableId());
         $token->setTokenableType($tokenable->getTokenableType());
         $token->setName($name);
-        $token->setToken($this->generateToken());
-        $token->setCreatedAt(new \DateTimeImmutable());
+        $token->setToken($hashedToken);
+        $token->setCreatedAt(new DateTimeImmutable());
 
         $this->tokenRepository->save($token);
 
         return $token;
     }
 
-    public function findValidToken(string $tokenHash): ?PersonalAccessToken
+    public function findValidToken(string $plainToken): ?PersonalAccessToken
     {
-        $token = $this->tokenRepository->findByToken(hash('sha256', $tokenHash));
+        $hashedToken = $this->tokenHasher->hashToken($plainToken);
+        $token = $this->tokenRepository->findByToken($hashedToken);
         if ($token && $token->getExpiresAt() === null) {
             return $token;
         }
@@ -69,25 +73,8 @@ readonly class TokenService
     {
         $tokens = $this->getTokensFor($tokenable);
         foreach ($tokens as $token) {
-            $token->setLastUsedAt(new \DateTimeImmutable());
+            $token->setLastUsedAt(new DateTimeImmutable());
             $this->tokenRepository->save($token);
         }
-    }
-
-    /**
-     * @throws RandomException
-     */
-    private function generateToken(): string
-    {
-        $plainToken = bin2hex(random_bytes(32));
-        return hash('sha256', $plainToken);
-    }
-
-    /**
-     * @throws RandomException
-     */
-    public function generatePlainToken(): string
-    {
-        return bin2hex(random_bytes(32));
     }
 }

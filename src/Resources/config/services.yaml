@@ -4,19 +4,14 @@ services:
     autoconfigure: true
     public: false
 
-  # Основной сервис для работы с токенами
   Jonston\SanctumBundle\Service\TokenService:
     arguments:
       $tokenRepository: '@Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository'
+      $tokenHasher: '@Jonston\SanctumBundle\Service\TokenHasher'
 
-  # Аутентификатор токенов
   Jonston\SanctumBundle\Security\TokenAuthenticator:
     arguments:
       $tokenService: '@Jonston\SanctumBundle\Service\TokenService'
 
-  # Адаптер пользователя для Security
-  Jonston\SanctumBundle\Security\UserAdapter:
-
-  # Репозиторий токенов
   Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository:
     arguments: ['@doctrine']
