@@ -2,13 +2,13 @@
 
 namespace Jonston\SanctumBundle\Security;
 
-use Jonston\SanctumBundle\Contract\TokenableInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Jonston\SanctumBundle\Contract\TokenableInterface;
 
-readonly class UserAdapter implements UserInterface
+class UserAdapter implements UserInterface
 {
     public function __construct(
-        private TokenableInterface $tokenable
+        private readonly TokenableInterface $tokenable
     ) {}
 
     public function getUserIdentifier(): string
@@ -18,12 +18,12 @@ readonly class UserAdapter implements UserInterface
 
     public function getRoles(): array
     {
-        return ['ROLE_API_USER'];
+        return ['ROLE_USER'];
     }
 
     public function eraseCredentials(): void
     {
-        // Ничего не делаем, токен не содержит чувствительных данных
+        // Нечего очищать
     }
 
     public function getTokenable(): TokenableInterface

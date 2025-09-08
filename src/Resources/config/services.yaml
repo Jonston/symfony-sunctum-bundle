@@ -4,21 +4,28 @@ services:
     autoconfigure: true
     public: false
 
-  Jonston\SanctumBundle\Security\TokenAuthenticator:
+  # Основной сервис для работы с токенами
+  Jonston\SanctumBundle\Service\TokenService:
     arguments:
       $tokenRepository: '@Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository'
-      $tokenManager: '@Jonston\SanctumBundle\Service\TokenManager'
-      $userProvider: null  # или укажите конкретный UserProvider если нужен
 
+  # Аутентификатор токенов
+  Jonston\SanctumBundle\Security\TokenAuthenticator:
+    arguments:
+      $tokenService: '@Jonston\SanctumBundle\Service\TokenService'
+
+  # Адаптер пользователя для Security
+  Jonston\SanctumBundle\Security\UserAdapter:
+
+  # Репозиторий токенов
+  Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository:
+    arguments: ['@doctrine']
+
+  # Устаревшие сервисы для обратной совместимости (можно удалить позже)
   Jonston\SanctumBundle\Service\TokenHasher:
 
-  # Основной сервис
   Jonston\SanctumBundle\Service\TokenManager:
     arguments:
       $tokenRepository: '@Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository'
       $em: '@doctrine.orm.entity_manager'
       $tokenHasher: '@Jonston\SanctumBundle\Service\TokenHasher'
-
-  # Репозиторий
-  Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository:
-    arguments: ['@doctrine']
