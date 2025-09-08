@@ -4,7 +4,7 @@ namespace Jonston\SanctumBundle\Tests\Unit\Entity;
 
 use DateTimeImmutable;
 use Jonston\SanctumBundle\Entity\PersonalAccessToken;
-use Jonston\SanctumBundle\Entity\TokenizableUser;
+use Jonston\SanctumBundle\Contract\TokenableInterface;
 use PHPUnit\Framework\TestCase;
 
 class PersonalAccessTokenTest extends TestCase
@@ -18,6 +18,8 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertNull($token->getName());
         $this->assertNull($token->getExpiresAt());
         $this->assertNull($token->getLastUsedAt());
+        $this->assertNull($token->getTokenableType());
+        $this->assertNull($token->getTokenableId());
     }
 
     public function testSettersAndGetters(): void
@@ -25,17 +27,16 @@ class PersonalAccessTokenTest extends TestCase
         $token = new PersonalAccessToken();
         $now = new DateTimeImmutable();
 
-        $user = $this->createMock(TokenizableUser::class);
-        $user->method('getUserIdentifier')->willReturn('123');
-
         $token->setName('Test Token');
-        $token->setUser($user);
+        $token->setTokenableType('App\\Entity\\User');
+        $token->setTokenableId(123);
         $token->setExpiresAt($now);
         $token->setLastUsedAt($now);
         $token->setToken('hashed-token');
 
         $this->assertEquals('Test Token', $token->getName());
-        $this->assertEquals($user, $token->getUser());
+        $this->assertEquals('App\\Entity\\User', $token->getTokenableType());
+        $this->assertEquals(123, $token->getTokenableId());
         $this->assertEquals($now, $token->getExpiresAt());
         $this->assertEquals($now, $token->getLastUsedAt());
         $this->assertEquals('hashed-token', $token->getToken());

@@ -23,21 +23,53 @@ class PersonalAccessTokenRepository extends ServiceEntityRepository
         return $result;
     }
 
-    public function findByUser(string $userId): array
+    public function findByTokenable(string $tokenableType, string|int $tokenableId): array
     {
         return $this->createQueryBuilder('t')
-            ->where('t.user = :user')
-            ->setParameter('user', $userId)
+            ->where('t.tokenableType = :type')
+            ->andWhere('t.tokenableId = :id')
+            ->setParameter('type', $tokenableType)
+            ->setParameter('id', $tokenableId)
             ->getQuery()
             ->getResult();
     }
 
+    public function findActiveByTokenable(string $tokenableType, string|int $tokenableId): array
+    {
+        return $this->createQueryBuilder('t')
+            ->where('t.tokenableType = :type')
+            ->andWhere('t.tokenableId = :id')
+            ->andWhere('t.expiresAt IS NULL OR t.expiresAt > :now')
+            ->setParameter('type', $tokenableType)
+            ->setParameter('id', $tokenableId)
+            ->setParameter('now', new \DateTimeImmutable())
+            ->getQuery()
+            ->getResult();
+    }
+
+    // Оставляю старые методы для обратной совместимости, но они deprecated
+
+    /**
+     * @deprecated Use findByTokenable instead
+     */
+    public function findByUser(string $userId): array
+    {
+        return $this->createQueryBuilder('t')
+            ->where('t.tokenableId = :id')
+            ->setParameter('id', $userId)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @deprecated Use findActiveByTokenable instead
+     */
     public function findActiveByUser(string $userId): array
     {
         return $this->createQueryBuilder('t')
-            ->where('t.user = :user')
+            ->where('t.tokenableId = :id')
             ->andWhere('t.expiresAt IS NULL OR t.expiresAt > :now')
-            ->setParameter('user', $userId)
+            ->setParameter('id', $userId)
             ->setParameter('now', new \DateTimeImmutable())
             ->getQuery()
             ->getResult();

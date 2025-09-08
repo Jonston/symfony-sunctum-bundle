@@ -22,7 +22,7 @@ class PersonalAccessToken
     private ?string $token = null;
 
     #[ORM\Column(type: 'datetime_immutable')]
-    private ?DateTimeImmutable $createdAt = null;
+    private ?DateTimeImmutable $createdAt;
 
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?DateTimeImmutable $expiresAt = null;
@@ -30,9 +30,11 @@ class PersonalAccessToken
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?DateTimeImmutable $lastUsedAt = null;
 
-    #[ORM\ManyToOne(targetEntity: TokenizableUser::class, inversedBy: 'accessTokens')]
-    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
-    private ?TokenizableUser $user = null;
+    #[ORM\Column(type: 'string', length: 255)]
+    private ?string $tokenableType = null;
+
+    #[ORM\Column(type: 'string', length: 255)]
+    private string|int|null $tokenableId = null;
 
     private ?string $plainTextToken = null;
 
@@ -68,9 +70,6 @@ class PersonalAccessToken
         return $this;
     }
 
-    /**
-     * Returns plain text token (only available after creation)
-     */
     public function getPlainTextToken(): ?string
     {
         return $this->plainTextToken;
@@ -115,14 +114,25 @@ class PersonalAccessToken
         return $this;
     }
 
-    public function getUser(): ?TokenizableUser
+    public function getTokenableType(): ?string
     {
-        return $this->user;
+        return $this->tokenableType;
     }
 
-    public function setUser(?TokenizableUser $user): self
+    public function setTokenableType(string $type): self
     {
-        $this->user = $user;
+        $this->tokenableType = $type;
+        return $this;
+    }
+
+    public function getTokenableId(): string|int|null
+    {
+        return $this->tokenableId;
+    }
+
+    public function setTokenableId(string|int $id): self
+    {
+        $this->tokenableId = $id;
         return $this;
     }
 

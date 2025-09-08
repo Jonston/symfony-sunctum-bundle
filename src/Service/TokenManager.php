@@ -4,7 +4,7 @@ namespace Jonston\SanctumBundle\Service;
 
 use DateTimeImmutable;
 use Exception;
-use Jonston\SanctumBundle\Entity\TokenizableUser;
+use Jonston\SanctumBundle\Contract\TokenableInterface;
 use Jonston\SanctumBundle\Entity\PersonalAccessToken;
 use Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -20,14 +20,15 @@ class TokenManager
     /**
      * @throws Exception
      */
-    public function createToken(TokenizableUser $user, string $name, ?DateTimeImmutable $expiresAt = null): array
+    public function createToken(TokenableInterface $tokenable, string $name, ?DateTimeImmutable $expiresAt = null): array
     {
         $plainTextToken = $this->tokenHasher->generatePlainToken();
         $hashedToken = $this->tokenHasher->hashToken($plainTextToken);
 
         $token = new PersonalAccessToken();
         $token->setName($name);
-        $token->setUser($user);
+        $token->setTokenableType($tokenable->getTokenableType());
+        $token->setTokenableId($tokenable->getTokenableId());
         $token->setToken($hashedToken);
         $token->setPlainTextToken($plainTextToken);
 
@@ -58,18 +59,18 @@ class TokenManager
         $this->removeToken($token);
     }
 
-    public function revokeAllTokensForUser(TokenizableUser $user): void
+    public function revokeAllTokensForUser(TokenableInterface $tokenable): void
     {
-        $tokens = $this->tokenRepository->findByUser($user->getUserIdentifier());
+        $tokens = $this->tokenRepository->findByTokenable($tokenable->getTokenableType(), $tokenable->getTokenableId());
 
         foreach ($tokens as $token) {
             $this->removeToken($token);
         }
     }
 
-    public function getUserTokens(TokenizableUser $user): array
+    public function getUserTokens(TokenableInterface $tokenable): array
     {
-        return $this->tokenRepository->findActiveByUser($user->getUserIdentifier());
+        return $this->tokenRepository->findActiveByTokenable($tokenable->getTokenableType(), $tokenable->getTokenableId());
     }
 
     public function cleanupExpiredTokens(): int

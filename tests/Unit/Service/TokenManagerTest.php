@@ -6,7 +6,7 @@ use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use Jonston\SanctumBundle\Entity\PersonalAccessToken;
-use Jonston\SanctumBundle\Entity\TokenizableUser;
+use Jonston\SanctumBundle\Contract\TokenableInterface;
 use Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository;
 use Jonston\SanctumBundle\Service\TokenHasher;
 use Jonston\SanctumBundle\Service\TokenManager;
@@ -16,7 +16,7 @@ class TokenManagerTest extends TestCase
 {
     private PersonalAccessTokenRepository $repository;
     private TokenManager $tokenManager;
-    private TokenizableUser $user;
+    private TokenableInterface $tokenable;
     private EntityManagerInterface $em;
     private TokenHasher $tokenHasher;
 
@@ -27,8 +27,9 @@ class TokenManagerTest extends TestCase
         $this->tokenHasher = $this->createMock(TokenHasher::class);
         $this->tokenManager = new TokenManager($this->repository, $this->em, $this->tokenHasher);
 
-        $this->user = $this->createMock(TokenizableUser::class);
-        $this->user->method('getUserIdentifier')->willReturn('123');
+        $this->tokenable = $this->createMock(TokenableInterface::class);
+        $this->tokenable->method('getTokenableId')->willReturn('123');
+        $this->tokenable->method('getTokenableType')->willReturn('App\\Entity\\User');
     }
 
     /**
@@ -55,7 +56,7 @@ class TokenManagerTest extends TestCase
         $this->em->expects($this->once())
             ->method('flush');
 
-        $result = $this->tokenManager->createToken($this->user, 'Test Token');
+        $result = $this->tokenManager->createToken($this->tokenable, 'Test Token');
 
         $this->assertIsArray($result);
         $this->assertArrayHasKey('token', $result);
@@ -63,7 +64,8 @@ class TokenManagerTest extends TestCase
         $this->assertEquals($plainToken, $result['token']);
         $this->assertInstanceOf(PersonalAccessToken::class, $result['entity']);
         $this->assertEquals('Test Token', $result['entity']->getName());
-        $this->assertEquals($this->user, $result['entity']->getUser());
+        $this->assertEquals('123', $result['entity']->getTokenableId());
+        $this->assertEquals('App\\Entity\\User', $result['entity']->getTokenableType());
     }
 
     /**
@@ -85,7 +87,7 @@ class TokenManagerTest extends TestCase
         $this->em->expects($this->once())
             ->method('flush');
 
-        $result = $this->tokenManager->createToken($this->user, 'Expiring Token', $expiresAt);
+        $result = $this->tokenManager->createToken($this->tokenable, 'Expiring Token', $expiresAt);
 
         $this->assertEquals($expiresAt, $result['entity']->getExpiresAt());
     }
@@ -141,8 +143,8 @@ class TokenManagerTest extends TestCase
         ];
 
         $this->repository->expects($this->once())
-            ->method('findByUser')
-            ->with('123')
+            ->method('findByTokenable')
+            ->with('App\\Entity\\User', '123')
             ->willReturn($tokens);
 
         $calls = [];
@@ -154,7 +156,7 @@ class TokenManagerTest extends TestCase
         $this->em->expects($this->exactly(2))
             ->method('flush');
 
-        $this->tokenManager->revokeAllTokensForUser($this->user);
+        $this->tokenManager->revokeAllTokensForUser($this->tokenable);
 
         $this->assertSame($tokens, $calls);
     }
@@ -167,11 +169,11 @@ class TokenManagerTest extends TestCase
         ];
 
         $this->repository->expects($this->once())
-            ->method('findActiveByUser')
-            ->with('123')
+            ->method('findActiveByTokenable')
+            ->with('App\\Entity\\User', '123')
             ->willReturn($tokens);
 
-        $result = $this->tokenManager->getUserTokens($this->user);
+        $result = $this->tokenManager->getUserTokens($this->tokenable);
 
         $this->assertEquals($tokens, $result);
     }
@@ -180,24 +182,30 @@ class TokenManagerTest extends TestCase
     {
         $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
         $query = $this->createMock(\Doctrine\ORM\AbstractQuery::class);
+
         $this->em->expects($this->once())
             ->method('createQueryBuilder')
             ->willReturn($qb);
+
         $qb->expects($this->once())
             ->method('delete')
             ->with(PersonalAccessToken::class, 't')
             ->willReturnSelf();
+
         $qb->expects($this->once())
             ->method('where')
             ->with('t.expiresAt IS NOT NULL AND t.expiresAt <= :now')
             ->willReturnSelf();
+
         $qb->expects($this->once())
             ->method('setParameter')
             ->with('now', $this->isInstanceOf(DateTimeImmutable::class))
             ->willReturnSelf();
+
         $qb->expects($this->once())
             ->method('getQuery')
             ->willReturn($query);
+
         $query->expects($this->once())
             ->method('execute')
             ->willReturn(5);
