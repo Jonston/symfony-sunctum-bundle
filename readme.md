@@ -73,13 +73,13 @@ security:
 ```php
 <?php
 
-use Jonston\SanctumBundle\Service\TokenManager;
+use Jonston\SanctumBundle\Service\TokenService;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 class ApiController extends AbstractController
 {
     public function __construct(
-        private readonly TokenManager $tokenManager
+        private readonly TokenService $tokenManager
     ) {}
 
     #[Route('/api/tokens', methods: ['POST'])]
@@ -175,13 +175,13 @@ Create a command for regular cleanup:
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Jonston\SanctumBundle\Service\TokenManager;
+use Jonston\SanctumBundle\Service\TokenService;
 
 class CleanupTokensCommand extends Command
 {
     protected static $defaultName = 'sanctum:cleanup';
     
-    public function __construct(private readonly TokenManager $tokenManager)
+    public function __construct(private readonly TokenService $tokenManager)
     {
         parent::__construct();
     }

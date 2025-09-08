@@ -2,30 +2,23 @@
 
 namespace Jonston\SanctumBundle\Tests\Unit\Service;
 
-use DateTimeImmutable;
-use Doctrine\ORM\EntityManagerInterface;
-use Exception;
+use Random\RandomException;
 use Jonston\SanctumBundle\Entity\PersonalAccessToken;
 use Jonston\SanctumBundle\Contract\TokenableInterface;
 use Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository;
-use Jonston\SanctumBundle\Service\TokenHasher;
-use Jonston\SanctumBundle\Service\TokenManager;
+use Jonston\SanctumBundle\Service\TokenService;
 use PHPUnit\Framework\TestCase;
 
 class TokenManagerTest extends TestCase
 {
     private PersonalAccessTokenRepository $repository;
-    private TokenManager $tokenManager;
+    private TokenService $tokenService;
     private TokenableInterface $tokenable;
-    private EntityManagerInterface $em;
-    private TokenHasher $tokenHasher;
 
     protected function setUp(): void
     {
         $this->repository = $this->createMock(PersonalAccessTokenRepository::class);
-        $this->em = $this->createMock(EntityManagerInterface::class);
-        $this->tokenHasher = $this->createMock(TokenHasher::class);
-        $this->tokenManager = new TokenManager($this->repository, $this->em, $this->tokenHasher);
+        $this->tokenService = new TokenService($this->repository);
 
         $this->tokenable = $this->createMock(TokenableInterface::class);
         $this->tokenable->method('getTokenableId')->willReturn('123');
@@ -33,109 +26,113 @@ class TokenManagerTest extends TestCase
     }
 
     /**
-     * @throws Exception
+     * @throws RandomException
      */
     public function testCreateToken(): void
     {
-        $plainToken = 'plain-text-token';
-        $hashedToken = 'hashed-token';
-
-        $this->tokenHasher->expects($this->once())
-            ->method('generatePlainToken')
-            ->willReturn($plainToken);
-
-        $this->tokenHasher->expects($this->once())
-            ->method('hashToken')
-            ->with($plainToken)
-            ->willReturn($hashedToken);
-
-        $this->em->expects($this->once())
-            ->method('persist')
+        $this->repository->expects($this->once())
+            ->method('save')
             ->with($this->isInstanceOf(PersonalAccessToken::class));
 
-        $this->em->expects($this->once())
-            ->method('flush');
+        $result = $this->tokenService->createToken($this->tokenable, 'Test Token');
 
-        $result = $this->tokenManager->createToken($this->tokenable, 'Test Token');
-
-        $this->assertIsArray($result);
-        $this->assertArrayHasKey('token', $result);
-        $this->assertArrayHasKey('entity', $result);
-        $this->assertEquals($plainToken, $result['token']);
-        $this->assertInstanceOf(PersonalAccessToken::class, $result['entity']);
-        $this->assertEquals('Test Token', $result['entity']->getName());
-        $this->assertEquals('123', $result['entity']->getTokenableId());
-        $this->assertEquals('App\\Entity\\User', $result['entity']->getTokenableType());
+        $this->assertInstanceOf(PersonalAccessToken::class, $result);
+        $this->assertEquals('Test Token', $result->getName());
+        $this->assertEquals('123', $result->getTokenableId());
+        $this->assertEquals('App\\Entity\\User', $result->getTokenableType());
+        $this->assertNotNull($result->getToken());
+        $this->assertInstanceOf(\DateTimeImmutable::class, $result->getCreatedAt());
     }
 
-    /**
-     * @throws Exception
-     */
-    public function testCreateTokenWithExpiration(): void
+    public function testFindValidToken(): void
     {
-        $expiresAt = new DateTimeImmutable('+30 days');
-        $plainToken = 'plain-text-token';
-        $hashedToken = 'hashed-token';
+        $tokenHash = 'test-token-hash';
+        $hashedToken = hash('sha256', $tokenHash);
 
-        $this->tokenHasher->method('generatePlainToken')->willReturn($plainToken);
-        $this->tokenHasher->method('hashToken')->willReturn($hashedToken);
+        $token = new PersonalAccessToken();
+        $token->setName('Test Token');
+        $token->setExpiresAt(null); // не истёк
 
-        $this->em->expects($this->once())
-            ->method('persist')
-            ->with($this->isInstanceOf(PersonalAccessToken::class));
+        $this->repository->expects($this->once())
+            ->method('findByToken')
+            ->with($hashedToken)
+            ->willReturn($token);
 
-        $this->em->expects($this->once())
-            ->method('flush');
+        $result = $this->tokenService->findValidToken($tokenHash);
 
-        $result = $this->tokenManager->createToken($this->tokenable, 'Expiring Token', $expiresAt);
-
-        $this->assertEquals($expiresAt, $result['entity']->getExpiresAt());
+        $this->assertSame($token, $result);
     }
 
-    public function testVerifyToken(): void
+    public function testFindValidTokenReturnsNullForExpiredToken(): void
     {
-        $plainToken = 'plain-token';
-        $hashedToken = 'hashed-token';
+        $tokenHash = 'test-token-hash';
+        $hashedToken = hash('sha256', $tokenHash);
 
-        $this->tokenHasher->expects($this->once())
-            ->method('verifyToken')
-            ->with($plainToken, $hashedToken)
-            ->willReturn(true);
+        $token = new PersonalAccessToken();
+        $token->setExpiresAt(new \DateTimeImmutable('-1 day')); // истёк
 
-        $result = $this->tokenManager->verifyToken($plainToken, $hashedToken);
+        $this->repository->expects($this->once())
+            ->method('findByToken')
+            ->with($hashedToken)
+            ->willReturn($token);
 
-        $this->assertTrue($result);
+        $result = $this->tokenService->findValidToken($tokenHash);
+
+        $this->assertNull($result);
     }
 
-    public function testHashToken(): void
+    public function testFindValidTokenReturnsNullWhenTokenNotFound(): void
     {
-        $plainToken = 'plain-token';
-        $expectedHash = 'expected-hash';
+        $tokenHash = 'test-token-hash';
+        $hashedToken = hash('sha256', $tokenHash);
 
-        $this->tokenHasher->expects($this->once())
-            ->method('hashToken')
-            ->with($plainToken)
-            ->willReturn($expectedHash);
+        $this->repository->expects($this->once())
+            ->method('findByToken')
+            ->with($hashedToken)
+            ->willReturn(null);
 
-        $result = $this->tokenManager->hashToken($plainToken);
+        $result = $this->tokenService->findValidToken($tokenHash);
 
-        $this->assertEquals($expectedHash, $result);
+        $this->assertNull($result);
     }
 
-    public function testRevokeToken(): void
+    public function testGetTokenable(): void
     {
         $token = new PersonalAccessToken();
+        $token->setTokenableType('App\\Entity\\User');
+        $token->setTokenableId('123');
 
-        $this->em->expects($this->once())
-            ->method('remove')
-            ->with($token);
-        $this->em->expects($this->once())
-            ->method('flush');
+        $user = $this->createMock(TokenableInterface::class);
 
-        $this->tokenManager->revokeToken($token);
+        $this->repository->expects($this->once())
+            ->method('findTokenable')
+            ->with('App\\Entity\\User', '123')
+            ->willReturn($user);
+
+        $result = $this->tokenService->getTokenable($token);
+
+        $this->assertSame($user, $result);
     }
 
-    public function testRevokeAllTokensForUser(): void
+    public function testGetTokenableReturnsNullForNonTokenableObject(): void
+    {
+        $token = new PersonalAccessToken();
+        $token->setTokenableType('App\\Entity\\User');
+        $token->setTokenableId('123');
+
+        $nonTokenableObject = new \stdClass();
+
+        $this->repository->expects($this->once())
+            ->method('findTokenable')
+            ->with('App\\Entity\\User', '123')
+            ->willReturn($nonTokenableObject);
+
+        $result = $this->tokenService->getTokenable($token);
+
+        $this->assertNull($result);
+    }
+
+    public function testGetTokensFor(): void
     {
         $tokens = [
             new PersonalAccessToken(),
@@ -147,21 +144,23 @@ class TokenManagerTest extends TestCase
             ->with('App\\Entity\\User', '123')
             ->willReturn($tokens);
 
-        $calls = [];
-        $this->em->expects($this->exactly(2))
-            ->method('remove')
-            ->willReturnCallback(function ($token) use (&$calls) {
-                $calls[] = $token;
-            });
-        $this->em->expects($this->exactly(2))
-            ->method('flush');
+        $result = $this->tokenService->getTokensFor($this->tokenable);
 
-        $this->tokenManager->revokeAllTokensForUser($this->tokenable);
-
-        $this->assertSame($tokens, $calls);
+        $this->assertEquals($tokens, $result);
     }
 
-    public function testGetUserTokens(): void
+    public function testRevokeToken(): void
+    {
+        $token = new PersonalAccessToken();
+
+        $this->repository->expects($this->once())
+            ->method('remove')
+            ->with($token);
+
+        $this->tokenService->revokeToken($token);
+    }
+
+    public function testUpdateLastUsed(): void
     {
         $tokens = [
             new PersonalAccessToken(),
@@ -169,49 +168,34 @@ class TokenManagerTest extends TestCase
         ];
 
         $this->repository->expects($this->once())
-            ->method('findActiveByTokenable')
+            ->method('findByTokenable')
             ->with('App\\Entity\\User', '123')
             ->willReturn($tokens);
 
-        $result = $this->tokenManager->getUserTokens($this->tokenable);
+        $this->repository->expects($this->exactly(2))
+            ->method('save')
+            ->with($this->isInstanceOf(PersonalAccessToken::class));
 
-        $this->assertEquals($tokens, $result);
+        $this->tokenService->updateLastUsed($this->tokenable);
+
+        // Проверяем, что lastUsedAt был обновлен
+        foreach ($tokens as $token) {
+            $this->assertInstanceOf(\DateTimeImmutable::class, $token->getLastUsedAt());
+        }
     }
 
-    public function testCleanupExpiredTokens(): void
+    /**
+     * @throws RandomException
+     */
+    public function testGeneratePlainToken(): void
     {
-        $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
-        $query = $this->createMock(\Doctrine\ORM\AbstractQuery::class);
+        $token1 = $this->tokenService->generatePlainToken();
+        $token2 = $this->tokenService->generatePlainToken();
 
-        $this->em->expects($this->once())
-            ->method('createQueryBuilder')
-            ->willReturn($qb);
-
-        $qb->expects($this->once())
-            ->method('delete')
-            ->with(PersonalAccessToken::class, 't')
-            ->willReturnSelf();
-
-        $qb->expects($this->once())
-            ->method('where')
-            ->with('t.expiresAt IS NOT NULL AND t.expiresAt <= :now')
-            ->willReturnSelf();
-
-        $qb->expects($this->once())
-            ->method('setParameter')
-            ->with('now', $this->isInstanceOf(DateTimeImmutable::class))
-            ->willReturnSelf();
-
-        $qb->expects($this->once())
-            ->method('getQuery')
-            ->willReturn($query);
-
-        $query->expects($this->once())
-            ->method('execute')
-            ->willReturn(5);
-
-        $result = $this->tokenManager->cleanupExpiredTokens();
-
-        $this->assertEquals(5, $result);
+        $this->assertIsString($token1);
+        $this->assertIsString($token2);
+        $this->assertNotEquals($token1, $token2);
+        $this->assertEquals(64, strlen($token1)); // 32 bytes = 64 hex chars
+        $this->assertEquals(64, strlen($token2));
     }
 }

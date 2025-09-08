@@ -80,4 +80,15 @@ class PersonalAccessTokenRepository extends ServiceEntityRepository
         $this->getEntityManager()->persist($token);
         $this->getEntityManager()->flush();
     }
+
+    public function remove(PersonalAccessToken $token): void
+    {
+        $this->getEntityManager()->remove($token);
+        $this->getEntityManager()->flush();
+    }
+
+    public function findTokenable(string $tokenableType, string|int $tokenableId): ?object
+    {
+        return $this->getEntityManager()->find($tokenableType, $tokenableId);
+    }
 }

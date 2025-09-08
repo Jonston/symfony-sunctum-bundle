@@ -47,7 +47,7 @@ In your controller, just type-hint the `TokenManager`:
 
 namespace App\Controller;
 
-use Jonston\SanctumBundle\Service\TokenManager;
+use Jonston\SanctumBundle\Service\TokenService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
@@ -55,7 +55,7 @@ use Symfony\Component\Routing\Annotation\Route;
 class ApiController extends AbstractController
 {
     #[Route('/api/create-token', methods: ['POST'])]
-    public function createToken(TokenManager $tokenManager): JsonResponse
+    public function createToken(TokenService $tokenManager): JsonResponse
     {
         $user = $this->getUser(); // Your user that extends TokenizableUser
         
