@@ -1,59 +1,59 @@
 # Symfony Sanctum Bundle
 
-Symfony-бандл, который предоставляет аутентификацию через персональные токены доступа в стиле Laravel Sanctum.
+A Symfony bundle that provides Laravel Sanctum-like personal access token authentication.
 
-## Описание
+## Description
 
-Этот бандл позволяет легко интегрировать токен-based аутентификацию в Symfony приложения. Он предоставляет функциональность, аналогичную Laravel Sanctum, для создания и управления персональными токенами доступа.
+This bundle allows you to easily integrate token-based authentication into Symfony applications. It provides functionality similar to Laravel Sanctum for creating and managing personal access tokens.
 
-## Возможности
+## Features
 
-- ✅ Создание персональных токенов доступа
-- ✅ Токен-based аутентификация через Bearer токены
-- ✅ Управление жизненным циклом токенов
-- ✅ Отслеживание времени последнего использования
-- ✅ Поддержка истечения токенов
-- ✅ Интеграция с Symfony Security компонентом
-- ✅ Поддержка любых сущностей через интерфейс TokenableInterface
+- ✅ Personal access token creation
+- ✅ Token-based authentication via Bearer tokens
+- ✅ Token lifecycle management
+- ✅ Last used time tracking
+- ✅ Token expiration support
+- ✅ Symfony Security component integration
+- ✅ Support for any entities via TokenableInterface
 
-## Требования
+## Requirements
 
-- PHP 8.2 или выше
-- Symfony 6.0+ или 7.0+
-- Doctrine ORM 2.14+ или 3.0+
+- PHP 8.2 or higher
+- Symfony 6.0+ or 7.0+
+- Doctrine ORM 2.14+ or 3.0+
 - Doctrine Bundle 2.8+
 
-## Установка
+## Installation
 
-Установите бандл через Composer:
+Install the bundle via Composer:
 
 ```bash
 composer require jonston/symfony-sanctum-bundle
 ```
 
-Добавьте бандл в `config/bundles.php`:
+Add the bundle to `config/bundles.php`:
 
 ```php
 <?php
 
 return [
-    // ... другие бандлы
+    // ... other bundles
     Jonston\SanctumBundle\SanctumBundle::class => ['all' => true],
 ];
 ```
 
-Создайте и выполните миграцию для таблицы токенов:
+Create and run migrations for the tokens table:
 
 ```bash
 php bin/console doctrine:migrations:diff
 php bin/console doctrine:migrations:migrate
 ```
 
-## Настройка
+## Configuration
 
-### 1. Настройка Security
+### 1. Security Configuration
 
-Добавьте аутентификатор в `config/packages/security.yaml`:
+Add the authenticator to `config/packages/security.yaml`:
 
 ```yaml
 security:
@@ -65,9 +65,9 @@ security:
                 - Jonston\SanctumBundle\Security\TokenAuthenticator
 ```
 
-### 2. Настройка пользовательской сущности
+### 2. User Entity Configuration
 
-Реализуйте интерфейс `TokenableInterface` в вашей пользовательской сущности:
+Implement the `TokenableInterface` in your user entity:
 
 ```php
 <?php
@@ -91,20 +91,20 @@ class User implements TokenableInterface
     #[ORM\Column(type: 'string', length: 255)]
     private ?string $email = null;
 
-    // ... остальные поля и методы
+    // ... other fields and methods
 
     public function getId(): ?int
     {
         return $this->id;
     }
 
-    // Методы интерфейса TokenableInterface уже реализованы в TokenableTrait
+    // TokenableInterface methods are already implemented in TokenableTrait
 }
 ```
 
-## Использование
+## Usage
 
-### Создание токенов
+### Creating Tokens
 
 ```php
 <?php
@@ -126,7 +126,7 @@ class AuthController extends AbstractController
     public function createToken(): JsonResponse
     {
         /** @var \App\Entity\User $user */
-        $user = $this->getUser(); // Получаем аутентифицированного пользователя
+        $user = $this->getUser(); // Get authenticated user
 
         $token = $this->tokenService->createToken($user, 'API Token');
 
@@ -139,9 +139,9 @@ class AuthController extends AbstractController
 }
 ```
 
-### Использование токенов в запросах
+### Using Tokens in Requests
 
-Отправляйте токен в заголовке Authorization:
+Send the token in the Authorization header:
 
 ```bash
 curl -H "Authorization: Bearer YOUR_TOKEN_HERE" \
@@ -149,9 +149,9 @@ curl -H "Authorization: Bearer YOUR_TOKEN_HERE" \
      http://your-app.com/api/protected-endpoint
 ```
 
-### Получение аутентифицированного пользователя
+### Getting Authenticated User
 
-В контроллерах API:
+In API controllers:
 
 ```php
 #[Route('/api/profile', methods: ['GET'])]
@@ -160,7 +160,7 @@ public function profile(): JsonResponse
     /** @var \Jonston\SanctumBundle\Security\UserAdapter $userAdapter */
     $userAdapter = $this->getUser();
     
-    $tokenable = $userAdapter->getTokenable(); // Ваша пользовательская сущность
+    $tokenable = $userAdapter->getTokenable(); // Your user entity
     
     return new JsonResponse([
         'id' => $tokenable->getTokenableId(),
@@ -169,64 +169,64 @@ public function profile(): JsonResponse
 }
 ```
 
-### Управление токенами
+### Token Management
 
 ```php
-// Получение всех токенов пользователя
+// Get all user tokens
 $tokens = $this->tokenService->getTokensFor($user);
 
-// Отзыв токена
+// Revoke a token
 $this->tokenService->revokeToken($token);
 
-// Обновление времени последнего использования
+// Update last used time
 $this->tokenService->updateLastUsed($user);
 ```
 
-## Архитектура
+## Architecture
 
-### Основные компоненты
+### Core Components
 
-1. **PersonalAccessToken** - сущность для хранения токенов
-2. **TokenService** - основной сервис для работы с токенами
-3. **TokenHasher** - сервис для хеширования и генерации токенов
-4. **TokenAuthenticator** - аутентификатор Symfony Security
-5. **UserAdapter** - адаптер для интеграции с Symfony Security
-6. **TokenableInterface** - интерфейс для сущностей, которые могут иметь токены
-7. **TokenableTrait** - трейт с базовой реализацией интерфейса
+1. **PersonalAccessToken** - Entity for storing tokens
+2. **TokenService** - Main service for token operations
+3. **TokenHasher** - Service for token hashing and generation
+4. **TokenAuthenticator** - Symfony Security authenticator
+5. **UserAdapter** - Adapter for Symfony Security integration
+6. **TokenableInterface** - Interface for entities that can have tokens
+7. **TokenableTrait** - Trait with basic interface implementation
 
-### База данных
+### Database
 
-Структура таблицы `personal_access_tokens`:
+Structure of the `personal_access_tokens` table:
 
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | integer | Первичный ключ |
-| name | string(255) | Название токена |
-| token | string(64) | Хешированный токен (индекс) |
-| tokenable_type | string(255) | Тип сущности |
-| tokenable_id | string(255) | ID сущности |
-| created_at | datetime_immutable | Время создания |
-| expires_at | datetime_immutable | Время истечения (nullable) |
-| last_used_at | datetime_immutable | Время последнего использования (nullable) |
+| Field | Type | Description |
+|-------|------|-------------|
+| id | integer | Primary key |
+| name | string(255) | Token name |
+| token | string(64) | Hashed token (indexed) |
+| tokenable_type | string(255) | Entity type |
+| tokenable_id | string(255) | Entity ID |
+| created_at | datetime_immutable | Creation time |
+| expires_at | datetime_immutable | Expiration time (nullable) |
+| last_used_at | datetime_immutable | Last used time (nullable) |
 
-## Безопасность
+## Security
 
-- Токены хешируются с помощью SHA-256
-- Поддерживается проверка времени истечения
-- Отслеживается время последнего использования
-- Используется cryptographically secure random generation для токенов
+- Tokens are hashed using SHA-256
+- Expiration time checking is supported
+- Last used time is tracked
+- Cryptographically secure random generation for tokens
 
-## Тестирование
+## Testing
 
-Запустите тесты:
+Run tests:
 
 ```bash
 vendor/bin/phpunit
 ```
 
-## Расширение функциональности
+## Extending Functionality
 
-### Кастомный TokenHasher
+### Custom TokenHasher
 
 ```php
 <?php
@@ -239,21 +239,21 @@ class CustomTokenHasher extends TokenHasher
 {
     public function generatePlainToken(): string
     {
-        // Ваша логика генерации токенов
+        // Your token generation logic
         return parent::generatePlainToken();
     }
 
     public function hashToken(string $plainToken): string
     {
-        // Ваша логика хеширования
+        // Your hashing logic
         return parent::hashToken($plainToken);
     }
 }
 ```
 
-### Кастомная логика аутентификации
+### Custom Authentication Logic
 
-Вы можете расширить `TokenAuthenticator` для добавления дополнительной логики:
+You can extend `TokenAuthenticator` to add additional logic:
 
 ```php
 <?php
@@ -267,20 +267,20 @@ class CustomTokenAuthenticator extends TokenAuthenticator
 {
     public function supports(Request $request): ?bool
     {
-        // Дополнительная логика проверки
+        // Additional validation logic
         return parent::supports($request);
     }
 }
 ```
 
-## Лицензия
+## License
 
 MIT License
 
-## Автор
+## Author
 
 Eugene (eugene@example.com)
 
-## Поддержка
+## Support
 
-Если у вас есть вопросы или предложения, создайте issue в репозитории проекта.
+If you have questions or suggestions, please create an issue in the project repository.
