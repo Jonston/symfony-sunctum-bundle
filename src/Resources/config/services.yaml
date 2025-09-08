@@ -4,6 +4,8 @@ services:
     autoconfigure: true
     public: false
 
+  Jonston\SanctumBundle\Service\TokenHasher: ~
+
   Jonston\SanctumBundle\Service\TokenService:
     arguments:
       $tokenRepository: '@Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository'
