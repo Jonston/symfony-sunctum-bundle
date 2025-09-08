@@ -20,12 +20,3 @@ services:
   # Репозиторий токенов
   Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository:
     arguments: ['@doctrine']
-
-  # Устаревшие сервисы для обратной совместимости (можно удалить позже)
-  Jonston\SanctumBundle\Service\TokenHasher:
-
-  Jonston\SanctumBundle\Service\TokenManager:
-    arguments:
-      $tokenRepository: '@Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository'
-      $em: '@doctrine.orm.entity_manager'
-      $tokenHasher: '@Jonston\SanctumBundle\Service\TokenHasher'
