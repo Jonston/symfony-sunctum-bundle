@@ -2,32 +2,46 @@
 
 namespace Jonston\SanctumBundle\Security;
 
+use Jonston\SanctumBundle\Contract\HasAccessTokensInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
-use Jonston\SanctumBundle\Contract\TokenableInterface;
 
-class UserAdapter implements UserInterface
+readonly class UserAdapter implements UserInterface
 {
-    public function __construct(
-        private readonly TokenableInterface $tokenable
-    ) {}
+    private HasAccessTokensInterface $tokenOwner;
+
+    public function __construct(HasAccessTokensInterface $tokenOwner)
+    {
+        $this->tokenOwner = $tokenOwner;
+    }
+
+    public function getTokenOwner(): HasAccessTokensInterface
+    {
+        return $this->tokenOwner;
+    }
 
     public function getUserIdentifier(): string
     {
-        return (string) $this->tokenable->getTokenableId();
+        return (string) $this->tokenOwner->getId();
     }
 
     public function getRoles(): array
     {
-        return ['ROLE_USER'];
+        $roles = ['ROLE_USER'];
+
+        if (method_exists($this->tokenOwner, 'getRoles')) {
+
+            $ownerRoles = $this->tokenOwner->getRoles();
+
+            if (is_array($ownerRoles)) {
+                $roles = array_merge($roles, $ownerRoles);
+            }
+        }
+
+        return array_unique($roles);
     }
 
     public function eraseCredentials(): void
     {
-        // Нечего очищать
-    }
-
-    public function getTokenable(): TokenableInterface
-    {
-        return $this->tokenable;
+        // No sensitive data to erase
     }
 }

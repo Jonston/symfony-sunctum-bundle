@@ -4,19 +4,17 @@ namespace Jonston\SanctumBundle\Entity;
 
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
+use Jonston\SanctumBundle\Contract\HasAccessTokensInterface;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'personal_access_tokens')]
 #[ORM\Index(columns: ['token'], name: 'personal_access_tokens_token_index')]
-class PersonalAccessToken
+class AccessToken
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: 'integer')]
     private ?int $id = null;
-
-    #[ORM\Column(type: 'string', length: 255, nullable: true)]
-    private ?string $name = null;
 
     #[ORM\Column(type: 'string', length: 64, unique: true)]
     private ?string $token = null;
@@ -30,13 +28,8 @@ class PersonalAccessToken
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?DateTimeImmutable $lastUsedAt = null;
 
-    #[ORM\Column(type: 'string', length: 255)]
-    private ?string $tokenableType = null;
-
-    #[ORM\Column(type: 'string', length: 255)]
-    private string|int|null $tokenableId = null;
-
-    private ?string $plainTextToken = null;
+    #[ORM\ManyToOne(targetEntity: HasAccessTokensInterface::class)]
+    private ?HasAccessTokensInterface $owner = null;
 
     public function __construct()
     {
@@ -48,17 +41,6 @@ class PersonalAccessToken
         return $this->id;
     }
 
-    public function getName(): ?string
-    {
-        return $this->name;
-    }
-
-    public function setName(?string $name): self
-    {
-        $this->name = $name;
-        return $this;
-    }
-
     public function getToken(): ?string
     {
         return $this->token;
@@ -67,17 +49,6 @@ class PersonalAccessToken
     public function setToken(string $token): self
     {
         $this->token = $token;
-        return $this;
-    }
-
-    public function getPlainTextToken(): ?string
-    {
-        return $this->plainTextToken;
-    }
-
-    public function setPlainTextToken(string $plainTextToken): self
-    {
-        $this->plainTextToken = $plainTextToken;
         return $this;
     }
 
@@ -108,42 +79,23 @@ class PersonalAccessToken
         return $this->lastUsedAt;
     }
 
-    public function setLastUsedAt(?DateTimeImmutable $lastUsedAt): self
+    public function getOwner(): ?HasAccessTokensInterface
     {
-        $this->lastUsedAt = $lastUsedAt;
+        return $this->owner;
+    }
+
+    public function setOwner(HasAccessTokensInterface $owner): self
+    {
+        $this->owner = $owner;
         return $this;
-    }
-
-    public function getTokenableType(): ?string
-    {
-        return $this->tokenableType;
-    }
-
-    public function setTokenableType(string $type): self
-    {
-        $this->tokenableType = $type;
-        return $this;
-    }
-
-    public function getTokenableId(): string|int|null
-    {
-        return $this->tokenableId;
-    }
-
-    public function setTokenableId(string|int $id): self
-    {
-        $this->tokenableId = $id;
-        return $this;
-    }
-
-    public function isExpired(): bool
-    {
-        return $this->expiresAt !== null && $this->expiresAt <= new DateTimeImmutable();
     }
 
     public function isValid(): bool
     {
-        return !$this->isExpired();
+        if ($this->expiresAt === null) {
+            return true;
+        }
+        return $this->expiresAt > new DateTimeImmutable();
     }
 
     public function updateLastUsedAt(): self

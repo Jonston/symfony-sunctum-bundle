@@ -1,0 +1,10 @@
+# Sanctum Bundle configuration
+sanctum:
+    # Class that will own the tokens (required parameter)
+    owner_class: App\Entity\User
+
+    # Length of the generated token (default: 40)
+    token_length: 40
+
+    # Default token expiration in hours (null = unlimited)
+    default_expiration_hours: null

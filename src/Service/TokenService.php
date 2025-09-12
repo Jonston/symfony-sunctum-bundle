@@ -3,78 +3,112 @@
 namespace Jonston\SanctumBundle\Service;
 
 use DateTimeImmutable;
-use Jonston\SanctumBundle\Entity\PersonalAccessToken;
-use Jonston\SanctumBundle\Contract\TokenableInterface;
-use Jonston\SanctumBundle\Repository\PersonalAccessTokenRepository;
+use Doctrine\ORM\EntityManagerInterface;
+use Exception;
+use Jonston\SanctumBundle\Contract\HasAccessTokensInterface;
+use Jonston\SanctumBundle\Entity\AccessToken;
+use Jonston\SanctumBundle\Repository\AccessTokenRepository;
+use Random\RandomException;
 
 readonly class TokenService
 {
     public function __construct(
-        private PersonalAccessTokenRepository $tokenRepository,
-        private TokenHasher $tokenHasher
+        private AccessTokenRepository $tokenRepository,
+        private EntityManagerInterface $entityManager,
+        private int $tokenLength = 40,
+        private ?int $defaultExpirationHours = null
     ) {}
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function createToken(
-        TokenableInterface $tokenable,
-        string $name,
-    ): PersonalAccessToken
+        HasAccessTokensInterface $owner,
+        ?DateTimeImmutable $expiresAt = null
+    ): array
     {
-        $plainToken = $this->tokenHasher->generatePlainToken();
-        $hashedToken = $this->tokenHasher->hashToken($plainToken);
+        $plainTextToken = $this->generatePlainTextToken();
+        $hashedToken = $this->hashToken($plainTextToken);
 
-        $token = new PersonalAccessToken();
-        $token->setTokenableId($tokenable->getTokenableId());
-        $token->setTokenableType($tokenable->getTokenableType());
-        $token->setName($name);
-        $token->setToken($hashedToken);
-        $token->setCreatedAt(new DateTimeImmutable());
+        $accessToken = new AccessToken();
+        $accessToken->setOwner($owner);
+        $accessToken->setToken($hashedToken);
 
-        $this->tokenRepository->save($token);
-
-        return $token;
-    }
-
-    public function findValidToken(string $plainToken): ?PersonalAccessToken
-    {
-        $hashedToken = $this->tokenHasher->hashToken($plainToken);
-        $token = $this->tokenRepository->findByToken($hashedToken);
-        if ($token && $token->getExpiresAt() === null) {
-            return $token;
+        if ($expiresAt !== null) {
+            $accessToken->setExpiresAt($expiresAt);
         }
-        return null;
-    }
 
-    public function getTokenable(PersonalAccessToken $accessToken): ?TokenableInterface
-    {
-        $tokenable = $this->tokenRepository->findTokenable(
-            $accessToken->getTokenableType(),
-            $accessToken->getTokenableId()
-        );
-        return $tokenable instanceof TokenableInterface ? $tokenable : null;
-    }
-
-    public function getTokensFor(TokenableInterface $tokenable): array
-    {
-        return $this->tokenRepository->findByTokenable(
-            $tokenable->getTokenableType(),
-            $tokenable->getTokenableId()
-        );
-    }
-
-    public function revokeToken(PersonalAccessToken $token): void
-    {
-        $this->tokenRepository->remove($token);
-    }
-
-    public function updateLastUsed(TokenableInterface $tokenable): void
-    {
-        $tokens = $this->getTokensFor($tokenable);
-        foreach ($tokens as $token) {
-            $token->setLastUsedAt(new DateTimeImmutable());
-            $this->tokenRepository->save($token);
+        if ( ! $accessToken->getCreatedAt()) {
+            $accessToken->setExpiresAt(
+                (new DateTimeImmutable())->modify('+' . $this->defaultExpirationHours . ' hours')
+            );
         }
+
+        $this->entityManager->persist($accessToken);
+        $this->entityManager->flush();
+
+        return [
+            'accessToken' => $accessToken,
+            'plainTextToken' => $plainTextToken,
+        ];
+    }
+
+    public function findValidToken(string $token): ?AccessToken
+    {
+        $hashedToken = $this->hashToken($token);
+        /** @var AccessToken|null $accessToken */
+        $accessToken = $this->tokenRepository->findOneBy(['token' => $hashedToken]);
+
+        if ($accessToken === null || !$accessToken->isValid()) {
+            return null;
+        }
+
+        return $accessToken;
+    }
+
+    public function getTokenOwner(AccessToken $accessToken): HasAccessTokensInterface
+    {
+        return $accessToken->getOwner();
+    }
+
+    public function updateLastUsed(AccessToken $accessToken): void
+    {
+        $accessToken->updateLastUsedAt();
+        $this->entityManager->persist($accessToken);
+        $this->entityManager->flush();
+    }
+
+    public function revokeToken(HasAccessTokensInterface $owner, AccessToken $accessToken): void
+    {
+        $owner->removeAccessToken($accessToken);
+        $this->entityManager->remove($accessToken);
+        $this->entityManager->flush();
+    }
+
+    public function revokeAllTokens(HasAccessTokensInterface $tokenOwner): void
+    {
+        foreach ($tokenOwner->getAccessTokens() as $token) {
+            $tokenOwner->removeAccessToken($token);
+            $this->entityManager->remove($token);
+        }
+        $this->entityManager->flush();
+    }
+
+    /**
+     * @throws RandomException
+     */
+    private function generatePlainTextToken(): string
+    {
+        return bin2hex(random_bytes($this->tokenLength / 2));
+    }
+
+    private function hashToken(string $token): string
+    {
+        return hash('sha256', $token);
+    }
+
+    public function purgeExpiredTokens(): int
+    {
+        return $this->tokenRepository->removeExpiredTokens();
     }
 }

@@ -1,59 +1,158 @@
 # Symfony Sanctum Bundle
 
-A Symfony bundle that provides Laravel Sanctum-like personal access token authentication.
+[![Latest Version](https://img.shields.io/packagist/v/jonston/symfony-sanctum-bundle.svg)](https://packagist.org/packages/jonston/symfony-sanctum-bundle)
+[![License](https://img.shields.io/packagist/l/jonston/symfony-sanctum-bundle.svg)](https://packagist.org/packages/jonston/symfony-sanctum-bundle)
 
-## Description
-
-This bundle allows you to easily integrate token-based authentication into Symfony applications. It provides functionality similar to Laravel Sanctum for creating and managing personal access tokens.
+A bundle for generating and managing access tokens (AccessToken) in Symfony. Inspired by Laravel Sanctum, it provides a flexible architecture for linking tokens to any owner entities without modifying their source code.
 
 ## Features
 
-- ✅ Personal access token creation
-- ✅ Token-based authentication via Bearer tokens
-- ✅ Token lifecycle management
-- ✅ Last used time tracking
-- ✅ Token expiration support
-- ✅ Symfony Security component integration
-- ✅ Support for any entities via TokenableInterface
-
-## Requirements
-
-- PHP 8.2 or higher
-- Symfony 6.0+ or 7.0+
-- Doctrine ORM 2.14+ or 3.0+
-- Doctrine Bundle 2.8+
+- 🔧 **Flexible architecture** – dynamic relationship configuration via Doctrine MetadataListener
+- 🔒 **Security** – tokens are hashed before being stored in the database
+- ⏰ **Lifetime management** – support for tokens with limited validity
+- 🎯 **Easy integration** – minimal changes to existing code
+- 🧹 **Automatic cleanup** – command for removing expired tokens
+- 🔐 **Authentication** – ready-to-use authenticator for Symfony Security
 
 ## Installation
-
-Install the bundle via Composer:
 
 ```bash
 composer require jonston/symfony-sanctum-bundle
 ```
 
-Add the bundle to `config/bundles.php`:
+## Configuration
+
+Create the file `config/packages/sanctum.yaml`:
+
+```yaml
+sanctum:
+    # Owner entity class (required)
+    owner_class: App\Entity\User
+    
+    # Token length (default: 40)
+    token_length: 40
+    
+    # Default expiration in hours (null = unlimited)
+    default_expiration_hours: 24
+```
+
+## User Entity Setup
+
+To use the bundle, you must:
+- Implement the `HasAccessTokensInterface` in your user entity
+- Use the `HasAccessTokensTrait` for token management
+- Add the `accessTokens` property with a OneToMany annotation
+- Configure the `owner` relationship in AccessToken via ManyToOne
+
+### Example Implementation
 
 ```php
 <?php
 
-return [
-    // ... other bundles
-    Jonston\SanctumBundle\SanctumBundle::class => ['all' => true],
-];
+namespace App\Entity;
+
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\ORM\Mapping as ORM;
+use Jonston\SanctumBundle\Contract\HasAccessTokensInterface;
+use Jonston\SanctumBundle\Entity\AccessToken;
+use Jonston\SanctumBundle\Traits\HasAccessTokensTrait;
+
+#[ORM\Entity]
+class User implements HasAccessTokensInterface
+{
+    use HasAccessTokensTrait;
+
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    private ?int $id = null;
+
+    #[ORM\Column(length: 180, unique: true)]
+    private ?string $email = null;
+
+    /**
+     * @var Collection<int, AccessToken>
+     */
+    #[ORM\OneToMany(mappedBy: 'owner', targetEntity: AccessToken::class, cascade: ['remove'], orphanRemoval: true)]
+    private Collection $accessTokens;
+
+    public function __construct()
+    {
+        $this->accessTokens = new ArrayCollection();
+    }
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    // ... other entity methods
+}
 ```
 
-Create and run migrations for the tokens table:
+**In AccessToken:**
 
-```bash
-php bin/console doctrine:migrations:diff
-php bin/console doctrine:migrations:migrate
+```php
+#[ORM\ManyToOne(targetEntity: HasAccessTokensInterface::class, inversedBy: 'accessTokens')]
+private ?HasAccessTokensInterface $owner = null;
 ```
 
-## Configuration
+**Important notes:**
+- The OneToMany relationship between User and AccessToken is configured via the `owner` field in AccessToken.
+- Token management methods are implemented via the trait.
+- Implement other entity methods as needed.
 
-### 1. Security Configuration
+## Usage
 
-Add the authenticator to `config/packages/security.yaml`:
+### Creating tokens
+
+```php
+<?php
+
+namespace App\Controller;
+
+use App\Entity\User;
+use Jonston\SanctumBundle\Service\TokenService;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+
+class AuthController extends AbstractController
+{
+    public function __construct(
+        private readonly TokenService $tokenService
+    ) {}
+
+    public function login(User $user): JsonResponse
+    {
+        // Create a token without expiration
+        $result = $this->tokenService->createToken($user);
+        $token = $result['plainTextToken'];
+
+        return new JsonResponse([
+            'token' => $token,
+            'expires_at' => null
+        ]);
+    }
+
+    public function createLimitedToken(User $user): JsonResponse
+    {
+        // Create a token with 1 hour expiration
+        $expiresAt = new \DateTimeImmutable('+1 hour');
+        $result = $this->tokenService->createToken($user, $expiresAt);
+        $token = $result['plainTextToken'];
+        $accessToken = $result['accessToken'];
+
+        return new JsonResponse([
+            'token' => $token,
+            'expires_at' => $accessToken->getExpiresAt()->format('Y-m-d H:i:s')
+        ]);
+    }
+}
+```
+
+### Security configuration
+
+In `config/packages/security.yaml`:
 
 ```yaml
 security:
@@ -65,9 +164,71 @@ security:
                 - Jonston\SanctumBundle\Security\TokenAuthenticator
 ```
 
-### 2. User Entity Configuration
+### Usage in controllers
 
-Implement the `TokenableInterface` in your user entity:
+```php
+<?php
+
+namespace App\Controller\Api;
+
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
+
+#[IsGranted('ROLE_USER')]
+class ApiController extends AbstractController
+{
+    public function profile(): JsonResponse
+    {
+        $user = $this->getUser(); // UserAdapter
+        $tokenOwner = $user->getTokenOwner(); // Your User entity
+
+        return new JsonResponse([
+            'id' => $tokenOwner->getId(),
+            'email' => $tokenOwner->getEmail(),
+        ]);
+    }
+}
+```
+
+### Revoking tokens
+
+```php
+public function logout(TokenService $tokenService): JsonResponse
+{
+    $token = $request->headers->get('Authorization');
+    $token = substr($token, 7); // Remove "Bearer "
+    
+    $tokenService->revokeToken($token);
+    
+    return new JsonResponse(['message' => 'Token revoked']);
+}
+
+public function revokeAllTokens(User $user, TokenService $tokenService): JsonResponse
+{
+    $tokenService->revokeAllTokens($user);
+    
+    return new JsonResponse(['message' => 'All tokens revoked']);
+}
+```
+
+## Commands
+
+### Prune expired tokens
+
+```bash
+php bin/console sanctum:prune-expired
+```
+
+It is recommended to schedule this command via cron:
+
+```bash
+# Run every hour
+0 * * * * cd /path/to/project && php bin/console sanctum:prune-expired
+```
+
+## Multiple token owners
+
+To support multiple token owner types, create an abstract base class:
 
 ```php
 <?php
@@ -75,212 +236,63 @@ Implement the `TokenableInterface` in your user entity:
 namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
-use Jonston\SanctumBundle\Contract\TokenableInterface;
-use Jonston\SanctumBundle\Traits\TokenableTrait;
+use Jonston\SanctumBundle\Contract\HasAccessTokensInterface;
+use Jonston\SanctumBundle\Traits\HasAccessTokensTrait;
 
 #[ORM\Entity]
-class User implements TokenableInterface
+#[ORM\InheritanceType('JOINED')]
+#[ORM\DiscriminatorColumn(name: 'type', type: 'string')]
+#[ORM\DiscriminatorMap(['user' => User::class, 'client' => Client::class])]
+abstract class TokenOwner implements HasAccessTokensInterface
 {
-    use TokenableTrait;
+    use HasAccessTokensTrait;
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
-    #[ORM\Column(type: 'integer')]
-    private ?int $id = null;
+    #[ORM\Column]
+    protected ?int $id = null;
 
-    #[ORM\Column(type: 'string', length: 255)]
-    private ?string $email = null;
-
-    // ... other fields and methods
+    public function __construct()
+    {
+        $this->accessTokens = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
         return $this->id;
     }
-
-    // TokenableInterface methods are already implemented in TokenableTrait
 }
 ```
 
-## Usage
-
-### Creating Tokens
+Then inherit your entities from this class:
 
 ```php
-<?php
-
-namespace App\Controller;
-
-use Jonston\SanctumBundle\Service\TokenService;
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\Routing\Annotation\Route;
-
-class AuthController extends AbstractController
+#[ORM\Entity]
+class User extends TokenOwner
 {
-    public function __construct(
-        private readonly TokenService $tokenService
-    ) {}
-
-    #[Route('/api/tokens', methods: ['POST'])]
-    public function createToken(): JsonResponse
-    {
-        /** @var \App\Entity\User $user */
-        $user = $this->getUser(); // Get authenticated user
-
-        $token = $this->tokenService->createToken($user, 'API Token');
-
-        return new JsonResponse([
-            'token' => $token->getPlainTextToken(),
-            'name' => $token->getName(),
-            'created_at' => $token->getCreatedAt()->format('Y-m-d H:i:s')
-        ]);
-    }
+    // User-specific fields and methods
 }
-```
 
-### Using Tokens in Requests
-
-Send the token in the Authorization header:
-
-```bash
-curl -H "Authorization: Bearer YOUR_TOKEN_HERE" \
-     -H "Content-Type: application/json" \
-     http://your-app.com/api/protected-endpoint
-```
-
-### Getting Authenticated User
-
-In API controllers:
-
-```php
-#[Route('/api/profile', methods: ['GET'])]
-public function profile(): JsonResponse
+#[ORM\Entity]
+class Client extends TokenOwner
 {
-    /** @var \Jonston\SanctumBundle\Security\UserAdapter $userAdapter */
-    $userAdapter = $this->getUser();
-    
-    $tokenable = $userAdapter->getTokenable(); // Your user entity
-    
-    return new JsonResponse([
-        'id' => $tokenable->getTokenableId(),
-        'type' => $tokenable->getTokenableType()
-    ]);
+    // Client-specific fields and methods
 }
 ```
 
-### Token Management
+And update the configuration:
 
-```php
-// Get all user tokens
-$tokens = $this->tokenService->getTokensFor($user);
-
-// Revoke a token
-$this->tokenService->revokeToken($token);
-
-// Update last used time
-$this->tokenService->updateLastUsed($user);
+```yaml
+sanctum:
+    owner_class: App\Entity\TokenOwner
 ```
 
-## Architecture
+## Requirements
 
-### Core Components
-
-1. **PersonalAccessToken** - Entity for storing tokens
-2. **TokenService** - Main service for token operations
-3. **TokenHasher** - Service for token hashing and generation
-4. **TokenAuthenticator** - Symfony Security authenticator
-5. **UserAdapter** - Adapter for Symfony Security integration
-6. **TokenableInterface** - Interface for entities that can have tokens
-7. **TokenableTrait** - Trait with basic interface implementation
-
-### Database
-
-Structure of the `personal_access_tokens` table:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | integer | Primary key |
-| name | string(255) | Token name |
-| token | string(64) | Hashed token (indexed) |
-| tokenable_type | string(255) | Entity type |
-| tokenable_id | string(255) | Entity ID |
-| created_at | datetime_immutable | Creation time |
-| expires_at | datetime_immutable | Expiration time (nullable) |
-| last_used_at | datetime_immutable | Last used time (nullable) |
-
-## Security
-
-- Tokens are hashed using SHA-256
-- Expiration time checking is supported
-- Last used time is tracked
-- Cryptographically secure random generation for tokens
-
-## Testing
-
-Run tests:
-
-```bash
-vendor/bin/phpunit
-```
-
-## Extending Functionality
-
-### Custom TokenHasher
-
-```php
-<?php
-
-namespace App\Service;
-
-use Jonston\SanctumBundle\Service\TokenHasher;
-
-class CustomTokenHasher extends TokenHasher
-{
-    public function generatePlainToken(): string
-    {
-        // Your token generation logic
-        return parent::generatePlainToken();
-    }
-
-    public function hashToken(string $plainToken): string
-    {
-        // Your hashing logic
-        return parent::hashToken($plainToken);
-    }
-}
-```
-
-### Custom Authentication Logic
-
-You can extend `TokenAuthenticator` to add additional logic:
-
-```php
-<?php
-
-namespace App\Security;
-
-use Jonston\SanctumBundle\Security\TokenAuthenticator;
-use Symfony\Component\HttpFoundation\Request;
-
-class CustomTokenAuthenticator extends TokenAuthenticator
-{
-    public function supports(Request $request): ?bool
-    {
-        // Additional validation logic
-        return parent::supports($request);
-    }
-}
-```
+- PHP 8.1+
+- Symfony 6.0+
+- Doctrine ORM
 
 ## License
 
-MIT License
-
-## Author
-
-Eugene (eugene@example.com)
-
-## Support
-
-If you have questions or suggestions, please create an issue in the project repository.
+MIT License. See [LICENSE](LICENSE) for details.
