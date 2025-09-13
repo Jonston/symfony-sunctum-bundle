@@ -7,7 +7,7 @@ A bundle for generating and managing access tokens (AccessToken) in Symfony. Ins
 
 ## Features
 
-- 🔧 **Flexible architecture** – dynamic relationship configuration via Doctrine MetadataListener
+- 🔧 **Flexible architecture** – dynamic relationship configuration via Doctrine
 - 🔒 **Security** – tokens are hashed before being stored in the database
 - ⏰ **Lifetime management** – support for tokens with limited validity
 - 🎯 **Easy integration** – minimal changes to existing code
@@ -22,7 +22,7 @@ composer require jonston/symfony-sanctum-bundle
 
 ## Configuration
 
-Create the file `config/packages/sanctum.yaml`:
+Create the file `config/packages/sanctum.yaml` (the recipe publishes a sample):
 
 ```yaml
 sanctum:
@@ -39,9 +39,9 @@ sanctum:
 ## User Entity Setup
 
 To use the bundle, you must:
-- Implement the `HasAccessTokensInterface` in your user entity
-- Use the `HasAccessTokensTrait` for token management
-- Add the `accessTokens` property with a OneToMany annotation
+- Implement the `HasAccessTokensInterface` in your owner entity
+- Use the `HasAccessTokensTrait` for token management (optional helper)
+- Add the `accessTokens` property with a OneToMany annotation (if you want a bidirectional relation)
 - Configure the `owner` relationship in AccessToken via ManyToOne
 
 ### Example Implementation
@@ -99,9 +99,8 @@ private ?HasAccessTokensInterface $owner = null;
 ```
 
 **Important notes:**
-- The OneToMany relationship between User and AccessToken is configured via the `owner` field in AccessToken.
-- Token management methods are implemented via the trait.
-- Implement other entity methods as needed.
+- The OneToMany relationship between owner and AccessToken is configured via the `owner` field in AccessToken.
+- Token management methods are implemented via the trait; you may implement them manually if preferred.
 
 ## Usage
 
@@ -180,7 +179,7 @@ class ApiController extends AbstractController
     public function profile(): JsonResponse
     {
         $user = $this->getUser(); // UserAdapter
-        $tokenOwner = $user->getTokenOwner(); // Your User entity
+        $tokenOwner = $user->getTokenOwner(); // Your owner entity
 
         return new JsonResponse([
             'id' => $tokenOwner->getId(),
@@ -286,6 +285,52 @@ And update the configuration:
 sanctum:
     owner_class: App\Entity\TokenOwner
 ```
+
+## What the package publishes and why
+
+When the bundle is installed via Composer + Symfony Flex, the recipe publishes configuration files into your project to make integration straightforward:
+
+- config/packages/sanctum.yaml — the main package configuration where you set key options (including owner_class);
+- config/packages/doctrine.yaml — an optional example showing a `resolve_target_entities` entry referencing the package parameter `%sanctum.owner_class%`.
+
+Why this is useful
+- sanctum.yaml provides a simple and safe place to declare which class in your application will own tokens (owner_class). The bundle exposes this parameter to the container so other configs can reference it.
+- Publishing doctrine.yaml provides a convenient example of how to configure Doctrine so that the `Jonston\SanctumBundle\Contract\HasAccessTokensInterface` resolves to your owner class. You can accept the published file as-is or copy/adjust it in your project.
+
+How to configure owner_class
+1. Open `config/packages/sanctum.yaml` (published by the recipe).
+
+```yaml
+sanctum:
+    owner_class: App\Entity\User
+    token_length: 40
+    default_expiration_hours: 24
+```
+
+2. Set `owner_class` to the class that will own tokens (e.g. App\Entity\User or your TokenOwner base class).
+
+3. If you prefer static Doctrine mapping, check the published `config/packages/doctrine.yaml`. It uses `%sanctum.owner_class%`:
+
+```yaml
+doctrine:
+  orm:
+    resolve_target_entities:
+      Jonston\SanctumBundle\Contract\HasAccessTokensInterface: '%sanctum.owner_class%'
+```
+
+4. After editing configs run:
+
+```bash
+composer dump-autoload
+php bin/console cache:clear
+```
+
+Notes and recommendations
+- You may choose not to accept the published doctrine.yaml and configure mapping manually in your project if you have special Doctrine rules.
+- The recipe only publishes example files — the bundle does not force their use and you can override or remove published configs.
+- While it's possible to configure mapping programmatically (CompilerPass or listener), the recommended default is to use the published sanctum.yaml + doctrine.yaml for clarity and simplicity.
+
+---
 
 ## Requirements
 

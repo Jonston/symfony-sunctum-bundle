@@ -1,4 +1,16 @@
+# This file intentionally left minimal.
+# Resolve target entity mapping for HasAccessTokensInterface is registered dynamically
+# from the bundle configuration (sanctum.owner_class) by AccessTokenMappingPass.
+# Do not rely on a static mapping here to avoid surprising overrides in the host app.
+
 doctrine:
   orm:
     resolve_target_entities:
-      Jonston\SanctumBundle\Contract\HasAccessTokensInterface: App\Entity\User
+      Jonston\SanctumBundle\Contract\HasAccessTokensInterface: '%sanctum.owner_class%'
+
+# Note:
+# This mapping uses the package configuration parameter %sanctum.owner_class%.
+# When the recipe publishes config/packages/sanctum.yaml in the host app and
+# the owner_class is set, Doctrine will resolve the interface to the concrete
+# owner class. If you prefer to configure this mapping manually in your app,
+# remove or override this file in your project's config/packages/doctrine.yaml.

@@ -14,9 +14,8 @@ class SanctumConfiguration implements ConfigurationInterface
 
         $rootNode->children()
             ->scalarNode('owner_class')
-                ->isRequired()
-                ->cannotBeEmpty()
-                ->info('The class that will own the access tokens')
+                ->defaultNull()
+                ->info('The class that will own the access tokens (optional)')
             ->end()
             ->integerNode('token_length')
                 ->defaultValue(40)
@@ -32,4 +31,3 @@ class SanctumConfiguration implements ConfigurationInterface
         return $treeBuilder;
     }
 }
-

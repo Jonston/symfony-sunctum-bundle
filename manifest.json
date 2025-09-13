@@ -1,9 +1,9 @@
 {
   "copy-from-recipe": {
+    "src/Resources/config/packages/sanctum.yaml": "config/packages/sanctum.yaml",
     "src/Resources/config/packages/doctrine.yaml": "config/packages/doctrine.yaml"
   },
   "bundles": {
     "Jonston\\SanctumBundle\\SanctumBundle": ["all"]
   }
 }
-
