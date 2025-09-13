@@ -1,0 +1,21 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+    public: false
+
+  # Register bundle services
+  Jonston\SanctumBundle\Security\TokenAuthenticator: ~
+
+  Jonston\SanctumBundle\Service\TokenService:
+    arguments:
+      $tokenLength: '%sanctum.token_length%'
+      $defaultExpirationHours: '%sanctum.default_expiration_hours%'
+
+  Jonston\SanctumBundle\Repository\AccessTokenRepository: ~
+
+  # Public alias for convenience (optional)
+  sanctum.token_service:
+    alias: Jonston\SanctumBundle\Service\TokenService
+    public: true
+
