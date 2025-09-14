@@ -5,6 +5,23 @@
 
 A bundle for generating and managing access tokens (AccessToken) in Symfony. Inspired by Laravel Sanctum, it provides a flexible architecture for linking tokens to any owner entities without modifying their source code.
 
+## Table of contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [User Entity Setup](#user-entity-setup)
+- [Usage](#usage)
+  - [Creating tokens](#creating-tokens)
+  - [Security configuration](#security-configuration)
+  - [Usage in controllers](#usage-in-controllers)
+  - [Revoking tokens](#revoking-tokens)
+- [Commands](#commands)
+- [Multiple token owners](#multiple-token-owners)
+- [What the package publishes and why](#what-the-package-publishes-and-why)
+- [Requirements](#requirements)
+- [License](#license)
+
 ## Features
 
 - 🔧 **Flexible architecture** – dynamic relationship configuration via Doctrine
