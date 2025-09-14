@@ -10,10 +10,10 @@ A bundle for generating and managing access tokens (AccessToken) in Symfony. Ins
 - [Features](#features)
 - [Installation](#installation)
 - [Configuration](#configuration)
+- [Security configuration](#security-configuration)
 - [User Entity Setup](#user-entity-setup)
 - [Usage](#usage)
   - [Creating tokens](#creating-tokens)
-  - [Security configuration](#security-configuration)
   - [Usage in controllers](#usage-in-controllers)
   - [Revoking tokens](#revoking-tokens)
 - [Commands](#commands)
@@ -53,6 +53,33 @@ sanctum:
     
     # Default expiration in hours (null = unlimited)
     default_expiration_hours: 24
+```
+
+### Security configuration
+
+Below is an example `security.yaml` configuration for an API route group using the bundle's custom TokenAuthenticator. It enables the new authenticator manager, registers a firewall that matches routes starting with `/api`, marks the firewall as stateless and uses the custom authenticator. You can allow anonymous access to specific endpoints (e.g. login) by adding an access control rule before the protected rule.
+
+```yaml
+security:
+    enable_authenticator_manager: true
+
+    providers:
+        app_user_provider:
+            entity:
+                class: App\Entity\User
+                property: email
+
+    firewalls:
+        api:
+            pattern: ^/api
+            stateless: true
+            custom_authenticators:
+                - Jonston\SanctumBundle\Security\TokenAuthenticator
+            provider: app_user_provider
+
+    access_control:
+        - { path: ^/api/login, roles: IS_AUTHENTICATED_ANONYMOUSLY }
+        - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 ```
 
 ## User Entity Setup
@@ -166,22 +193,6 @@ class AuthController extends AbstractController
         ]);
     }
 }
-```
-
-### Security configuration
-
-Below is an example `security.yaml` configuration for an API route group using the bundle's custom TokenAuthenticator. It enables the new authenticator manager, registers a firewall that matches routes starting with `/api`, marks the firewall as stateless and uses the custom authenticator. You can allow anonymous access to specific endpoints (e.g. login) by adding an access control rule before the protected rule.
-
-```yaml
-security:
-    firewalls:
-        # Public endpoints (login, token creation) can be on the same firewall
-        api:
-            pattern: ^/api
-            stateless: true
-            custom_authenticators:
-                - Jonston\SanctumBundle\Security\TokenAuthenticator
-            provider: app_user_provider
 ```
 
 ### Usage in controllers
