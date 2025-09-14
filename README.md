@@ -117,7 +117,7 @@ class User implements HasAccessTokensInterface
 private ?HasAccessTokensInterface $owner = null;
 ```
 
-**Important notes:**
+**⚠️ Important notes:**
 - The OneToMany relationship between owner and AccessToken is configured via the `owner` field in AccessToken.
 - Token management methods are implemented via the trait; you may implement them manually if preferred.
 
