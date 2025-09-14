@@ -11,7 +11,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'sanctum:prune-expired',
-    description: 'Удалить все просроченные токены доступа'
+    description: 'Remove all expired access tokens'
 )]
 class PruneExpiredTokensCommand extends Command
 {
@@ -25,14 +25,14 @@ class PruneExpiredTokensCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        $io->info('Удаление просроченных токенов...');
+        $io->info('Removing expired access tokens...');
 
         $deletedCount = $this->tokenService->purgeExpiredTokens();
 
         if ($deletedCount > 0) {
-            $io->success(sprintf('Удалено %d просроченных токенов.', $deletedCount));
+            $io->success(sprintf('Removed %d expired access tokens.', $deletedCount));
         } else {
-            $io->info('Просроченные токены не найдены.');
+            $io->info('No expired access tokens found.');
         }
 
         return Command::SUCCESS;

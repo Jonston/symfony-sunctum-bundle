@@ -5,11 +5,29 @@ namespace Jonston\SanctumBundle\DependencyInjection;
 use Exception;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 
-class SanctumExtension extends Extension
+class SanctumExtension extends Extension implements PrependExtensionInterface
 {
+    public function prepend(ContainerBuilder $container): void
+    {
+        $configuration = new SanctumConfiguration();
+        $configs = $container->getExtensionConfig($this->getAlias());
+        $config = $this->processConfiguration($configuration, $configs);
+
+        if (!empty($config['owner_class'])) {
+            $container->prependExtensionConfig('doctrine', [
+                'orm' => [
+                    'resolve_target_entities' => [
+                        'Jonston\\SanctumBundle\\Contract\\HasAccessTokensInterface' => $config['owner_class'],
+                    ],
+                ],
+            ]);
+        }
+    }
+
     /**
      * @throws Exception
      */

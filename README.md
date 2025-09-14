@@ -22,11 +22,13 @@ composer require jonston/symfony-sanctum-bundle
 
 ## Configuration
 
+⚠️ Note: by default the bundle uses the App\Entity\User class as the owner of access tokens for the AccessToken `owner` mapping. If you want to override this and use your own entity, create a configuration file (config/packages/sanctum.yaml) and set the `owner_class` parameter to your entity class. When `owner_class` is provided the bundle will prepend a `resolve_target_entities` entry mapping `Jonston\SanctumBundle\Contract\HasAccessTokensInterface` to your class so Doctrine can correctly map the interface to your entity.
+
 Create the file `config/packages/sanctum.yaml` (the recipe publishes a sample):
 
 ```yaml
 sanctum:
-    # Owner entity class (required)
+    # Owner entity class
     owner_class: App\Entity\User
     
     # Token length (default: 40)
@@ -151,16 +153,18 @@ class AuthController extends AbstractController
 
 ### Security configuration
 
-In `config/packages/security.yaml`:
+Below is an example `security.yaml` configuration for an API route group using the bundle's custom TokenAuthenticator. It enables the new authenticator manager, registers a firewall that matches routes starting with `/api`, marks the firewall as stateless and uses the custom authenticator. You can allow anonymous access to specific endpoints (e.g. login) by adding an access control rule before the protected rule.
 
 ```yaml
 security:
     firewalls:
+        # Public endpoints (login, token creation) can be on the same firewall
         api:
             pattern: ^/api
             stateless: true
             custom_authenticators:
                 - Jonston\SanctumBundle\Security\TokenAuthenticator
+            provider: app_user_provider
 ```
 
 ### Usage in controllers
@@ -178,8 +182,8 @@ class ApiController extends AbstractController
 {
     public function profile(): JsonResponse
     {
-        $user = $this->getUser(); // UserAdapter
-        $tokenOwner = $user->getTokenOwner(); // Your owner entity
+        $user = $this->getUser();
+        $tokenOwner = $user->getTokenOwner();
 
         return new JsonResponse([
             'id' => $tokenOwner->getId(),
@@ -195,7 +199,7 @@ class ApiController extends AbstractController
 public function logout(TokenService $tokenService): JsonResponse
 {
     $token = $request->headers->get('Authorization');
-    $token = substr($token, 7); // Remove "Bearer "
+    $token = substr($token, 7);
     
     $tokenService->revokeToken($token);
     
@@ -227,6 +231,8 @@ It is recommended to schedule this command via cron:
 
 ## Multiple token owners
 
+You can use the example below which demonstrates the JOINED inheritance strategy (InheritanceType JOINED), a discriminator column/map and implementing HasAccessTokensInterface on a common base class so different owner types (User, Client, etc.) share the same token mapping.
+
 To support multiple token owner types, create an abstract base class:
 
 ```php
@@ -249,7 +255,7 @@ abstract class TokenOwner implements HasAccessTokensInterface
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    protected ?int $id = null;
+    protected ?int|string $id = null;
 
     public function __construct()
     {
