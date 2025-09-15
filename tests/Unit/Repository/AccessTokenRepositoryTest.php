@@ -2,8 +2,6 @@
 
 namespace Jonston\SanctumBundle\Tests\Unit\Repository;
 
-use DateTimeImmutable;
-use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\ORM\EntityManagerInterface;
 use Jonston\SanctumBundle\Entity\AccessToken;
 use Jonston\SanctumBundle\Repository\AccessTokenRepository;
@@ -20,7 +18,6 @@ class AccessTokenRepositoryTest extends TestCase
             ->disableOriginalConstructor()
             ->onlyMethods(['save', 'remove', 'findOneByToken', 'createQueryBuilder'])
             ->getMock();
-        $this->em = $this->createMock(EntityManagerInterface::class);
     }
 
     public function testSaveAndRemove(): void
