@@ -36,9 +36,7 @@ readonly class TokenService
 
         if ($expiresAt !== null) {
             $accessToken->setExpiresAt($expiresAt);
-        }
-
-        if ( ! $accessToken->getCreatedAt()) {
+        } elseif ($this->defaultExpirationHours !== null) {
             $accessToken->setExpiresAt(
                 (new DateTimeImmutable())->modify('+' . $this->defaultExpirationHours . ' hours')
             );

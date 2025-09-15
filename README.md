@@ -84,11 +84,11 @@ security:
 
 ## User Entity Setup
 
-To use the bundle, you must:
-- Implement the `HasAccessTokensInterface` in your owner entity
+To use the bundle, your owner entity must:
+- Implement the `HasAccessTokensInterface` interface
+- Implement Symfony's `UserInterface` interface (since the authenticator returns the entity directly)
 - Use the `HasAccessTokensTrait` for token management (optional helper)
 - Add the `accessTokens` property with a OneToMany annotation (if you want a bidirectional relation)
-- Configure the `owner` relationship in AccessToken via ManyToOne
 
 ### Example Implementation
 
@@ -103,9 +103,10 @@ use Doctrine\ORM\Mapping as ORM;
 use Jonston\SanctumBundle\Contract\HasAccessTokensInterface;
 use Jonston\SanctumBundle\Entity\AccessToken;
 use Jonston\SanctumBundle\Traits\HasAccessTokensTrait;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 #[ORM\Entity]
-class User implements HasAccessTokensInterface
+class User implements HasAccessTokensInterface, UserInterface
 {
     use HasAccessTokensTrait;
 
@@ -133,6 +134,33 @@ class User implements HasAccessTokensInterface
         return $this->id;
     }
 
+    public function getEmail(): ?string
+    {
+        return $this->email;
+    }
+
+    public function setEmail(string $email): self
+    {
+        $this->email = $email;
+        return $this;
+    }
+
+    // UserInterface implementation
+    public function getUserIdentifier(): string
+    {
+        return (string) $this->email;
+    }
+
+    public function getRoles(): array
+    {
+        return ['ROLE_USER'];
+    }
+
+    public function eraseCredentials(): void
+    {
+        // Nothing to erase
+    }
+
     // ... other entity methods
 }
 ```
@@ -140,12 +168,12 @@ class User implements HasAccessTokensInterface
 **In AccessToken:**
 
 ```php
-#[ORM\ManyToOne(targetEntity: HasAccessTokensInterface::class, inversedBy: 'accessTokens')]
+#[ORM\ManyToOne(targetEntity: HasAccessTokensInterface::class)]
 private ?HasAccessTokensInterface $owner = null;
 ```
 
 **⚠️ Important notes:**
-- The OneToMany relationship between owner and AccessToken is configured via the `owner` field in AccessToken.
+- The OneToMany relationship between owner and AccessToken is configured via the `owner` field in AccessToken. Ensure your owner entity implements `HasAccessTokensInterface` and exposes a collection property named `accessTokens` if you want a bidirectional relation.
 - Token management methods are implemented via the trait; you may implement them manually if preferred.
 
 ## Usage
@@ -224,20 +252,26 @@ class ApiController extends AbstractController
 ### Revoking tokens
 
 ```php
-public function logout(TokenService $tokenService): JsonResponse
+public function logout(Request $request, TokenService $tokenService): JsonResponse
 {
     $token = $request->headers->get('Authorization');
-    $token = substr($token, 7);
-    
-    $tokenService->revokeToken($token);
-    
+    $token = $token ? substr($token, 7) : null;
+
+    if ($token) {
+        $accessToken = $tokenService->findValidToken($token);
+        if ($accessToken) {
+            $owner = $tokenService->getTokenOwner($accessToken);
+            $tokenService->revokeToken($owner, $accessToken);
+        }
+    }
+
     return new JsonResponse(['message' => 'Token revoked']);
 }
 
-public function revokeAllTokens(User $user, TokenService $tokenService): JsonResponse
+public function revokeAllTokens(HasAccessTokensInterface $user, TokenService $tokenService): JsonResponse
 {
     $tokenService->revokeAllTokens($user);
-    
+
     return new JsonResponse(['message' => 'All tokens revoked']);
 }
 ```

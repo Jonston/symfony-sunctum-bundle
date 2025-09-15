@@ -38,12 +38,12 @@ class TokenAuthenticator extends AbstractAuthenticator
         }
 
         $this->tokenService->updateLastUsed($accessToken);
-        $user = $this->createUserAdapter($accessToken);
+        $tokenOwner = $this->tokenService->getTokenOwner($accessToken);
 
         return new SelfValidatingPassport(
             new UserBadge(
-                $user->getUserIdentifier(),
-                fn() => $user
+                (string) $tokenOwner->getId(),
+                fn() => $tokenOwner
             )
         );
     }
@@ -67,11 +67,5 @@ class TokenAuthenticator extends AbstractAuthenticator
             throw new CustomUserMessageAuthenticationException('No valid Bearer token provided');
         }
         return $matches[1];
-    }
-
-    private function createUserAdapter($accessToken): UserAdapter
-    {
-        $owner = $this->tokenService->getTokenOwner($accessToken);
-        return new UserAdapter($owner);
     }
 }
